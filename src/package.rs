@@ -5,23 +5,27 @@ use serde_json::Value;
 use std::fs::File;
 use std::io::Write;
 
-pub trait Package {
-    fn prepare(&self);
-    fn get_name(&self) -> String;
-    fn get_version_value(&self) -> String;
-    fn depends_on(&self, dependency: &dyn Package) -> bool;
-    fn update(&mut self, dependency: &dyn Package) -> bool;
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct PackageDef {
+    pub path: String,
 }
 
-pub struct Typescript {
+impl PackageDef {
+    pub fn new(path: &str) -> PackageDef {
+        PackageDef {
+            path: path.to_string(),
+        }
+    }
+}
+
+pub struct Package {
     package_json: PackageJson,
-    path: String,
-    name: String,
+    def: PackageDef,
 }
 
-impl Typescript {
-    pub fn new(path: &str, name: &str) -> Typescript {
-        let mut our_path = path.to_string();
+impl Package {
+    pub fn new(def: PackageDef) -> Package {
+        let mut our_path = def.path.to_string();
 
         if our_path.ends_with('/') {
             our_path.pop();
@@ -29,34 +33,37 @@ impl Typescript {
 
         let package_json = PackageJson::new(format!("{}/package.json", our_path).as_str()).expect("to work");
 
-        Typescript {
+        Package {
             package_json,
-            path: our_path,
-            name: name.to_string(),
+            def: PackageDef {
+                path: our_path,
+            },
         }
     }
-}
 
-impl Package for Typescript {
-    fn prepare(&self) {
-        info!("Preparing typescript package: {}", self.path);
+    pub fn prepare(&self) {
+        info!("Preparing typescript package: {}", self.def.path);
 
-        let output = run_basic_command(format!("npm run build --prefix={}", &self.path).as_str())
+        let npm_install_output = run_basic_command(format!("npm install --prefix={}", &self.def.path).as_str())
+            .expect("Failed to install");
+        debug!("{} -- {:?} -- for `npm install` on package: {}", npm_install_output.status, npm_install_output, self.def.path);
+
+        let npm_build_output = run_basic_command(format!("npm run build --prefix={}", &self.def.path).as_str())
             .expect("Failed to build");
-        info!("Exit code: {} for package: {}", output.status, self.path);
-        debug!("output: {:?}", output);
+        debug!("{} -- {:?} -- for `npm run build` on package: {}", npm_build_output.status, npm_build_output, self.def.path);
     }
 
-    fn get_name(&self) -> String {
-        self.name.clone()
+    pub fn get_name(&self) -> String {
+        self.package_json.name.clone()
     }
 
-    fn get_version_value(&self) -> String {
-        format!("file:{}", self.path.as_str())
+    pub fn get_version_value(&self) -> String {
+        format!("file:{}", self.def.path.as_str())
     }
 
-    fn update(&mut self, dependency: &dyn Package) -> bool {
-        dependency.prepare();
+    pub fn update(&mut self, dependency_def: PackageDef) -> bool {
+        let dependency = Package::new(dependency_def);
+        info!("Updating dependency {:?} for {:?}", dependency.get_name(), self.get_name());
         if self.package_json.update(&dependency.get_name(), &dependency.get_version_value()) {
             self.package_json.write().map_or_else(|e| {
                 error!("Received error writing package.json: {:?}", e);
@@ -67,22 +74,26 @@ impl Package for Typescript {
         }
     }
 
-    fn depends_on(&self, dependency: &dyn Package) -> bool {
-        info!("Checking if {} depends on {}", self.get_name(), dependency.get_name());
+    pub fn depends_on(&self, dependency_def: PackageDef) -> bool {
+        let dependency = Package::new(dependency_def);
         self.package_json.get(&dependency.get_name()).map_or(false, |_| true)
     }
 }
 
 struct PackageJson {
     path: String,
+    name: String,
     data: Value,
 }
 
 impl PackageJson {
     pub fn new(path: &str) -> Result<PackageJson> {
+        debug!("Fetching package.json from {}", path);
+        let data: Value = serde_json::from_reader(File::open(path)?)?;
         Ok(PackageJson {
             path: path.to_string(),
-            data: serde_json::from_reader(File::open(path)?)?,
+            name: data.get("name").expect("Package.json to have a name").to_string().replace("\"", ""),
+            data,
         })
     }
 
@@ -96,7 +107,7 @@ impl PackageJson {
                         Some(value)
                     }
                     _ => {
-                        error!("Malformed package.json: {:?}", dependency);
+                        debug!("Package not a dependency: {:?}", package_name);
                         None
                     },
                 }
@@ -114,7 +125,7 @@ impl PackageJson {
                         Some(value)
                     }
                     _ => {
-                        error!("Malformed package.json: {:?}", dependency);
+                        debug!("Package not a dependency: {:?}", package_name);
                         None
                     },
                 }

@@ -156,6 +156,7 @@ dependencies = [
  "env_logger",
  "log",
  "serde_json",
+ "solvent",
 ]
 
 [[package]]
@@ -258,6 +259,12 @@ dependencies = [
  "winapi 0.2.8",
  "winapi-build",
 ]
+
+[[package]]
+name = "solvent"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81f2aa187127373758077a9365b14aa9d262afca73a9629dbdffd1a00af72a6f"
 
 [[package]]
 name = "syn"
