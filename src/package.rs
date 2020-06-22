@@ -119,22 +119,17 @@ impl Package for Bundle {
         let tarball = File::create(self.get_tarball_file()).expect("Unable to create tarball");
         let enc = GzEncoder::new(tarball, Compression::default());
         let mut tar = tar::Builder::new(enc);
+
         let mut dist = self.get_path().clone();
         dist.push("dist");
         tar.append_dir_all("package/dist", dist)
             .expect("Unable to create tar archive");
+
         let mut package_json = self.get_path().clone();
         package_json.push("package.json");
         tar.append_file(
             "package/package.json",
             &mut File::open(package_json).expect("to access package.json"),
-        )
-        .expect("Unable to add package.json to tar archive ");
-        let mut readme = self.get_path().clone();
-        readme.push("README.md");
-        tar.append_file(
-            "package/README.md",
-            &mut File::open(readme).expect("to access Readme"),
         )
         .expect("Unable to add package.json to tar archive ");
     }
