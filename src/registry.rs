@@ -55,7 +55,7 @@ impl Registry {
             dependent.update(dependency);
         });
 
-        Typescript::new(path).prepare();
+        self.packages.get_mut(&path).expect("Unknown path").prepare();
     }
 
     pub fn bundle_dependencies(&mut self, path: PathBuf) {
@@ -73,7 +73,7 @@ impl Registry {
             dependent.update(Box::new(dependency_bundle));
         });
 
-        Typescript::new(path).prepare();
+        self.packages.get_mut(&path).expect("Unknown path").prepare();
     }
 
 
