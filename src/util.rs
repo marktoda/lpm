@@ -13,11 +13,9 @@ pub fn run_basic_command_expect(command: &str, error: &str) -> Output {
 
     debug!(
         "{} -- {:?} -- for command `{}`",
-        output.status,
-        output,
-        command);
+        output.status, output, command
+    );
     output
-
 }
 
 pub fn setup_env_logger(default_level: &str) {

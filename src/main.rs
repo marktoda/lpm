@@ -51,10 +51,7 @@ fn main() {
                 .alias("ls")
                 .about("List currently added packages"),
         )
-        .subcommand(
-            SubCommand::with_name("clear")
-                .about("Clear current package list"),
-        )
+        .subcommand(SubCommand::with_name("clear").about("Clear current package list"))
         .subcommand(
             SubCommand::with_name("bundle")
                 .about("Bundle local dependencies for release of the given package")

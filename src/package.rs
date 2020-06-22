@@ -38,9 +38,15 @@ impl Package for Typescript {
     fn prepare(&self) {
         info!("Preparing package: {}", self.get_name());
 
-        run_basic_command_expect(format!("npm install --prefix={:?}", self.path).as_str(), "Failed to install");
+        run_basic_command_expect(
+            format!("npm install --prefix={:?}", self.path).as_str(),
+            "Failed to install",
+        );
 
-        run_basic_command_expect(format!("npm run build --prefix={:?}", self.path).as_str(), "Failed to build");
+        run_basic_command_expect(
+            format!("npm run build --prefix={:?}", self.path).as_str(),
+            "Failed to build",
+        );
     }
 
     fn get_name(&self) -> String {
@@ -88,7 +94,6 @@ pub struct Bundle {
     inner: Box<dyn Package>,
 }
 
-// TODO use a trait here so different package types can prepare / update differently
 impl Bundle {
     pub fn new(inner: Box<dyn Package>) -> Bundle {
         Bundle { inner }
