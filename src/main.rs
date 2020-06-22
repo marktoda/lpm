@@ -108,7 +108,7 @@ fn result_main() -> Result<()> {
             }
         }
         ("reset", Some(reset_matches)) => {
-            let registry = load_registry(&state);
+            let mut registry = load_registry(&state);
 
             if reset_matches.is_present("all") && reset_matches.is_present("PATH") {
                 panic!("Both all and package path provided. Please provide one or the other");
@@ -144,6 +144,6 @@ fn load_registry(state: &State) -> Registry {
     state
         .package_paths
         .iter()
-        .for_each(|path| registry.add(Box::new(Typescript::new(PathBuf::from(path)))));
+        .for_each(|path| registry.add(Typescript::new(PathBuf::from(path))));
     registry
 }

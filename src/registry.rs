@@ -4,6 +4,7 @@ use anyhow::Result;
 use solvent::DepGraph;
 use std::fs;
 use std::path::PathBuf;
+use std::collections::HashMap;
 
 pub struct Registry {
     packages: Packages,
@@ -18,10 +19,10 @@ impl Registry {
         }
     }
 
-    pub fn add(&mut self, package: Box<dyn Package>) {
+    pub fn add(&mut self, package: impl Package + 'static) {
         let graph = &mut self.graph;
 
-        self.packages.iter().for_each(|other| {
+        self.packages.values().for_each(|other| {
             if package.depends_on(&other.get_name()) {
                 info!(
                     "Package {:?} depends on {:?}",
@@ -39,11 +40,11 @@ impl Registry {
             }
         });
 
-        self.packages.push(package);
+        self.packages.insert(package.get_path().clone(), Box::new(package));
     }
 
     pub fn update_dependencies(&mut self, path: PathBuf) {
-        self.for_each_dependency(path.clone(), move |mut dependent: Box<dyn Package>, mut dependency: Box<dyn Package>, processed_packages: &Vec<PathBuf>| {
+        self.for_each_dependency(path.clone(), move |dependent: &mut Box<dyn Package>, mut dependency: Box<dyn Package>, processed_packages: &Vec<PathBuf>| {
             processed_packages.iter().for_each(|processed_package| {
                 // TODO Fix this hacky reinstantiation
                 dependency.update(Box::new(Typescript::new(processed_package.to_path_buf())));
@@ -58,7 +59,7 @@ impl Registry {
     }
 
     pub fn bundle_dependencies(&mut self, path: PathBuf) {
-        self.for_each_dependency(path.clone(), move |mut dependent: Box<dyn Package>, dependency: Box<dyn Package>, processed_packages: &Vec<PathBuf>| {
+        self.for_each_dependency(path.clone(), move |dependent: &mut Box<dyn Package>, dependency: Box<dyn Package>, processed_packages: &Vec<PathBuf>| {
             let mut dependency_bundle = Bundle::new(dependency);
 
             processed_packages.iter().for_each(|processed_package| {
@@ -76,24 +77,23 @@ impl Registry {
     }
 
 
-    pub fn reset_dependency(&self, dependency_path: PathBuf, version: Option<String>) -> Result<()> {
+    pub fn reset_dependency(&mut self, dependency_path: PathBuf, version: Option<String>) -> Result<()> {
+        let dependency = Typescript::new(dependency_path);
         // update the given dependency in all packages
-        self.packages.iter().map(|package| {
-            let dependency = Typescript::new(dependency_path.clone());
-            let mut dependent = Typescript::new(package.get_path());
+        for (_, dependent) in self.packages.iter_mut() {
             if dependent.depends_on(&dependency.get_name()) {
-                dependent.reset(Box::new(dependency), version.clone())?;
+                dependent.reset(dependency.get_name(), version.clone())?;
                 dependent.prepare();
             }
-            Ok(())
-        }).collect()
+        };
+        Ok(())
     }
 
-    pub fn for_each_dependency(&mut self, path: PathBuf, f: impl Fn(Box<dyn Package>, Box<dyn Package>, &Vec<PathBuf>)) {
+    pub fn for_each_dependency(&mut self, path: PathBuf, f: impl Fn(&mut Box<dyn Package>, Box<dyn Package>, &Vec<PathBuf>)) {
         // TODO handle errors better in this fn
         // TODO Remove need to instantiate concrete types here so this func can work for different
         // package types
-        let package = Box::new(Typescript::new(path.clone()));
+        let package = self.packages.get_mut(&path).unwrap();
         let mut processed_packages: Vec<PathBuf> = Vec::new();
 
         self.graph
@@ -104,7 +104,7 @@ impl Registry {
                 let dependency_path = dependency_path_result.unwrap().to_path_buf();
                 let dependency = Box::new(Typescript::new(dependency_path.clone()));
 
-                f(package.clone(), dependency.clone(), &processed_packages);
+                f(package, dependency.clone(), &processed_packages);
                 processed_packages.push(dependency.get_path());
             });
     }
@@ -121,4 +121,4 @@ impl Registry {
     }
 }
 
-type Packages = Vec<Box<dyn Package>>;
+type Packages = HashMap<PathBuf, Box<dyn Package>>;
