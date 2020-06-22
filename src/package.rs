@@ -1,5 +1,5 @@
 use crate::util::run_basic_command_expect;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use log::{debug, error, info};
@@ -8,14 +8,16 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use crate::package_manager::{Npm, PackageManager};
 
 pub trait Package {
     fn prepare(&self);
     fn get_name(&self) -> String;
     fn get_path(&self) -> PathBuf;
     fn get_version_value(&self) -> String;
+    fn reset(&mut self, dependency: Box<dyn Package>, version: Option<String>) -> Result<()>;
     fn update(&mut self, dependency: Box<dyn Package>) -> bool;
-    fn depends_on(&self, dependency: &Box<dyn Package>) -> bool;
+    fn depends_on(&self, dependency_name: &str) -> bool;
 }
 
 #[derive(Clone, Debug)]
@@ -61,6 +63,18 @@ impl Package for Typescript {
         format!("file:{}", self.path.to_string_lossy())
     }
 
+    fn reset(&mut self, dependency: Box<dyn Package>, version: Option<String>) -> Result<()> {
+        let version_string = version.unwrap_or(Npm::get_latest_version_value(&dependency.get_name())?);
+        info!("Resetting dependency {} to version {} in {}", dependency.get_name(), version_string, self.get_name());
+
+        if self.package_json.update(&dependency.get_name(), &version_string) {
+            self.package_json.write()?;
+            Ok(())
+        } else {
+            Err(anyhow!("Could not update package.json"))
+        }
+    }
+
     fn update(&mut self, dependency: Box<dyn Package>) -> bool {
         info!(
             "Updating dependency {:?} for {:?}",
@@ -83,9 +97,9 @@ impl Package for Typescript {
         }
     }
 
-    fn depends_on(&self, dependency: &Box<dyn Package>) -> bool {
+    fn depends_on(&self, dependency_name: &str) -> bool {
         self.package_json
-            .get(&dependency.get_name())
+            .get(dependency_name)
             .map_or(false, |_| true)
     }
 }
@@ -146,12 +160,16 @@ impl Package for Bundle {
         format!("file:{}", self.get_local_bundle_file())
     }
 
+    fn reset(&mut self, dependency: Box<dyn Package>, version: Option<String>) -> Result<()> {
+        self.inner.reset(dependency, version)
+    }
+
     fn update(&mut self, dependency: Box<dyn Package>) -> bool {
         self.inner.update(dependency)
     }
 
-    fn depends_on(&self, dependency: &Box<dyn Package>) -> bool {
-        self.inner.depends_on(dependency)
+    fn depends_on(&self, dependency_name: &str) -> bool {
+        self.inner.depends_on(dependency_name)
     }
 }
 

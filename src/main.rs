@@ -6,17 +6,18 @@ extern crate tar;
 
 use app_dirs::*;
 use clap::{App, Arg, SubCommand};
-use std::fs;
 use std::path::PathBuf;
+use anyhow::Result;
 
 mod package;
+mod package_manager;
 mod registry;
 mod state;
 mod util;
 use package::Typescript;
 use registry::Registry;
 use state::State;
-use util::setup_env_logger_cli;
+use util::{get_path, setup_env_logger_cli};
 
 const APP_INFO: AppInfo = AppInfo {
     name: "lpm",
@@ -24,6 +25,10 @@ const APP_INFO: AppInfo = AppInfo {
 };
 
 fn main() {
+    result_main().unwrap();
+}
+
+fn result_main() -> Result<()> {
     let state_dir = app_dir(AppDataType::UserData, &APP_INFO, "registry")
         .expect("To be able to create app dir");
     let mut state = State::load(state_dir.clone()).unwrap_or(State::new(state_dir));
@@ -34,39 +39,48 @@ fn main() {
         .about("Local package manager for typescript / javascript packages")
         .arg(
             Arg::with_name("v")
-                .short("v")
-                .multiple(true)
-                .help("Sets the level of verbosity"),
-        )
+            .short("v")
+            .multiple(true)
+            .help("Sets the level of verbosity"),
+            )
         .subcommand(
             SubCommand::with_name("add")
-                .about("Add a new local package to the registry")
-                .arg_from_usage("<PATH> 'Path to package directory'"),
-        )
-        .subcommand(SubCommand::with_name("update").about(
-            "Update all packages to introduce new code from its registered local dependencies",
-        ))
+            .about("Add a new local package to the registry")
+            .arg_from_usage("<PATH> 'Path to package directory'"),
+            )
+        .subcommand(
+            SubCommand::with_name("update")
+            .about("Update packages to introduce new code from its registered local dependencies. If no path is given, all packages are updated.")
+            .args_from_usage("[PATH]        'Path to package directory for to update'
+                             -a, --all      'Update all packages with local versions. This is the default'"),
+            )
+        .subcommand(
+            SubCommand::with_name("reset")
+            .about("Reset packages to remotely a published version. If no path is given, all packages are updated.")
+            .args_from_usage("[PATH]                    'Path to package directory for to update'
+                             -a, --all                  'Update all packages with remote versions. This is the default'
+                             -v --version [VERSION]     'Specific vresion to update to. If none is given, the latest will be used.'
+                             -l --latest                'Use the latest available remote version. This is the default'"),
+            )
         .subcommand(
             SubCommand::with_name("list")
-                .alias("ls")
-                .about("List currently added packages"),
-        )
+            .alias("ls")
+            .about("List currently added packages"),
+            )
         .subcommand(SubCommand::with_name("clear").about("Clear current package list"))
         .subcommand(
             SubCommand::with_name("bundle")
-                .about("Bundle local dependencies for release of the given package")
-                .arg_from_usage("<PATH> 'Path to package directory for release'"),
-        )
+            .about("Bundle local dependencies for release of the given package")
+            .arg_from_usage("<PATH> 'Path to package directory for release'"),
+            )
         .get_matches();
 
     setup_env_logger_cli(matches.occurrences_of("v"));
 
     match matches.subcommand() {
         ("add", Some(add_matches)) => {
-            let path = add_matches.value_of("PATH").unwrap();
-            let package_path = fs::canonicalize(PathBuf::from(path))
-                .expect(format!("Invalid path: {}", path).as_str());
-            state.package_paths.insert(package_path);
+            let path = get_path(add_matches.value_of("PATH").unwrap());
+            state.package_paths.insert(path);
         }
         ("list", Some(_)) => {
             println!("Packages: ");
@@ -77,24 +91,51 @@ fn main() {
         ("clear", Some(_)) => {
             state.package_paths.clear();
         }
-        ("update", Some(_)) => {
-            // TODO be smarter here to avoid double-preparing
+        ("update", Some(update_matches)) => {
             let mut registry = load_registry(&state);
-            state.package_paths.iter().for_each(|path| {
-                registry.update_dependencies(PathBuf::from(path));
-            });
+
+            if update_matches.is_present("all") && update_matches.is_present("PATH") {
+                panic!("Both all and package path provided. Please provide one or the other");
+            } else if update_matches.is_present("PATH") {
+                let path = get_path(update_matches.value_of("PATH").unwrap());
+                registry.update_dependencies(path);
+            } else {
+                // update all packages
+                // TODO be smarter here to avoid double-preparing
+                state.package_paths.iter().for_each(|path| {
+                    registry.update_dependencies(PathBuf::from(path));
+                });
+            }
+        }
+        ("reset", Some(reset_matches)) => {
+            let registry = load_registry(&state);
+
+            if reset_matches.is_present("all") && reset_matches.is_present("PATH") {
+                panic!("Both all and package path provided. Please provide one or the other");
+            } else if reset_matches.is_present("PATH") {
+                let path = get_path(reset_matches.value_of("PATH").unwrap());
+                if reset_matches.is_present("version") {
+                    registry.reset_dependency(path, reset_matches.value_of("version").map(|v| v.to_string()))?;
+                } else {
+                    registry.reset_dependency(path, None)?;
+                }
+            } else {
+                // update all packages
+                state.package_paths.iter().for_each(|path| {
+                    registry.reset_dependency(PathBuf::from(path), None).expect("Unable to reset dependency");
+                });
+            }
         }
         ("bundle", Some(bundle_matches)) => {
-            let path = bundle_matches.value_of("PATH").unwrap();
-            let package_path = fs::canonicalize(PathBuf::from(path))
-                .expect(format!("Invalid path: {}", path).as_str());
             let mut registry = load_registry(&state);
-            registry.bundle_dependencies(PathBuf::from(package_path));
+            let path = get_path(bundle_matches.value_of("PATH").unwrap());
+            registry.bundle_dependencies(path);
         }
         _ => unreachable!(),
     };
 
     state.store();
+    Ok(())
 }
 
 fn load_registry(state: &State) -> Registry {

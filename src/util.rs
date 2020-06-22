@@ -1,5 +1,7 @@
 use env_logger::Env;
 use log::debug;
+use std::fs;
+use std::path::PathBuf;
 use std::process::{Command, Output};
 
 pub fn run_basic_command(command: &str) -> Result<Output, std::io::Error> {
@@ -31,4 +33,8 @@ pub fn setup_env_logger_cli(v_occurrences: u64) {
     };
 
     setup_env_logger(log_level);
+}
+
+pub fn get_path(path: &str) -> PathBuf {
+    fs::canonicalize(PathBuf::from(path)).expect(format!("Invalid path: {}", path).as_str())
 }

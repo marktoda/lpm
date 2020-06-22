@@ -1,6 +1,30 @@
 # Local Package Manager
 
-A package manager for local dependencies to enable automated cross-project integration.
+A package manager for local dependencies to enable simple cross-project integration. It can resolve the dependency graph for a configured set of packages and install / build / update accordingly.
+
+## Examples
+
+The most common workflow for `lpm` is to stage a multi-dependency change locally to test the integration between components, without having to publish to npm. Below I will show an example of how I use it for development at BitGo:
+
+```bash
+$ lpm add $HOME/dev/BitGoJS/modules/statics
+$ lpm add $HOME/dev/BitGoJS/modules/core
+$ lpm add $HOME/dev/bitgo-account-lib
+$ ... several other packages
+
+$ lpm ls
+... make sure that the registered packages look right and we're not missing anything
+
+... develop some changes in various packages
+
+$ lpm update ../path/to/BitGoJS
+
+... run unit tests and integration tests on the components which are now locally integrated
+
+$ lpm bundle ../path/to/BitGoJS
+
+... push to server to run automated e2e tests
+```
 
 ## Building
 
@@ -78,34 +102,11 @@ SUBCOMMANDS:
     update    Update all packages to introduce new code from its registered local dependencies
 ```
 
-## Examples
-
-The most common workflow for `lpm` is to stage a multi-dependency change locally to test the integration between components, without having to publish to npm. Below I will show an example of how I use it for development at BitGo:
-
-```bash
-$ lpm add $HOME/dev/BitGoJS/modules/statics
-$ lpm add $HOME/dev/BitGoJS/modules/core
-$ lpm add $HOME/dev/bitgo-account-lib
-$ ... several other packages
-
-$ lpm ls
-... make sure that the registered packages look right and we're not missing anything
-
-... develop some changes in various packages
-
-$ lpm update
-
-... run unit tests and integration tests on the components which are now locally integrated
-
-$ lpm bundle BitGoJS
-
-... push to server to run automated e2e tests
-```
-
 ## Future Improvement
 
 Some ideas for future improvement:
 - *Custom package preparation*: All package are assumed to be prepared with `npm install ; npm run build`. `lpm` should support custom preparation scripts, maybe with an optional arg to `lpm add`
 - *Sessions*: Ability to open / close sessions, reverting state to how it was before the session
 - *Smart caching*: Use `crev-recursive-digest` crate or similar to get the version-hash of a package, and use it to avoid rebuilds if unchanged
+- *Name Keys*: Currently packages are only keyed by path in the CLI tool. It would be nice to be able to call them by name instead.
 - lots of cleanup, see inline TODOs

@@ -19,3 +19,4 @@ clap = "2.33.1"
 chrono = "0.4.11"
 tar = "0.4.29"
 flate2 = "1.0.14"
+reqwest = { version = "0.10.6", features = ["blocking"] }
