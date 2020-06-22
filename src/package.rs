@@ -4,6 +4,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use log::{debug, error, info};
 use serde_json::Value;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -36,7 +37,7 @@ impl Typescript {
 
 impl Package for Typescript {
     fn prepare(&self) {
-        info!("Preparing typescript package: {}", self.get_name());
+        info!("Preparing package: {}", self.get_name());
 
         let npm_install_output =
             run_basic_command(format!("npm install --prefix={:?}", self.path).as_str())
@@ -68,7 +69,7 @@ impl Package for Typescript {
     }
 
     fn get_version_value(&self) -> String {
-        format!("file:{:?}", self.path)
+        format!("file:{}", self.path.to_string_lossy())
     }
 
     fn update(&mut self, dependency: Box<dyn Package>) -> bool {
@@ -109,24 +110,43 @@ impl Bundle {
     pub fn new(inner: Box<dyn Package>) -> Bundle {
         Bundle { inner }
     }
+
+    pub fn get_tarball_file(&self) -> String {
+        format!("/tmp/lpm/{}/build.tar.gz", self.get_name())
+    }
+
+    pub fn get_local_bundle_file(&self) -> String {
+        format!(".lpm/{}/build.tar.gz", self.get_name())
+    }
+
+    fn get_tarball_dir(&self) -> String {
+        format!("/tmp/lpm/{}", self.get_name())
+    }
 }
 
 impl Package for Bundle {
     fn prepare(&self) {
         info!("Creating tarball bundle of {}", self.get_name());
-        let tarball =
-            File::create(format!("asdf.tar.gz")).expect("Unable to create tarball");
+        fs::create_dir_all(self.get_tarball_dir()).expect("Unable to create tmp dir");
+        let tarball = File::create(self.get_tarball_file()).expect("Unable to create tarball");
         let enc = GzEncoder::new(tarball, Compression::default());
         let mut tar = tar::Builder::new(enc);
         let mut dist = self.get_path().clone();
         dist.push("dist");
-        tar.append_dir_all("./", dist).expect("Unable to create tar archive");
+        tar.append_dir_all("package/dist", dist)
+            .expect("Unable to create tar archive");
         let mut package_json = self.get_path().clone();
         package_json.push("package.json");
         tar.append_file(
-            "./",
-            &mut File::open(package_json)
-                .expect("to access package.json"),
+            "package/package.json",
+            &mut File::open(package_json).expect("to access package.json"),
+        )
+        .expect("Unable to add package.json to tar archive ");
+        let mut readme = self.get_path().clone();
+        readme.push("README.md");
+        tar.append_file(
+            "package/README.md",
+            &mut File::open(readme).expect("to access Readme"),
         )
         .expect("Unable to add package.json to tar archive ");
     }
@@ -140,7 +160,7 @@ impl Package for Bundle {
     }
 
     fn get_version_value(&self) -> String {
-        format!("tarball:{:?}", self.get_path())
+        format!("file:{}", self.get_local_bundle_file())
     }
 
     fn update(&mut self, dependency: Box<dyn Package>) -> bool {
@@ -165,9 +185,9 @@ impl PackageJson {
         let data: Value = serde_json::from_reader(File::open(path.clone())?)?;
         Ok(PackageJson {
             path: path,
-        name: data
-        .get("name")
-            .expect("Package.json to have a name")
+            name: data
+                .get("name")
+                .expect("Package.json to have a name")
                 .to_string()
                 .replace("\"", ""),
             data,

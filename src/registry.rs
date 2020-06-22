@@ -1,6 +1,7 @@
 use crate::package::{Bundle, Package, Typescript};
 use log::info;
 use solvent::DepGraph;
+use std::fs;
 use std::path::PathBuf;
 
 pub struct Registry {
@@ -90,12 +91,24 @@ impl Registry {
                 });
 
                 dependency.prepare();
+                Registry::copy_tarball(&dependency, &package);
 
                 package.update(Box::new(dependency));
                 processed_packages.push(dependency_path.to_path_buf());
             });
 
         package.prepare();
+    }
+
+    fn copy_tarball(dependency: &Bundle, package: &dyn Package) {
+        let mut package_build_path = package.get_path();
+        package_build_path.push(dependency.get_local_bundle_file());
+        let mut package_build_dir_path = package_build_path.clone();
+        package_build_dir_path.pop();
+
+        fs::create_dir_all(package_build_dir_path).expect("Unable to create tmp dir");
+        fs::copy(dependency.get_tarball_file(), package_build_path)
+            .expect("Unable to copy tarball");
     }
 }
 
