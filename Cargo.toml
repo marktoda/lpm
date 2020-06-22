@@ -20,3 +20,7 @@ chrono = "0.4.11"
 tar = "0.4.29"
 flate2 = "1.0.14"
 reqwest = { version = "0.10.6", features = ["blocking"] }
+blake2 = "0.8.0"
+base64 = "0.11"
+digest = "0.8"
+hex = "0.4.2"

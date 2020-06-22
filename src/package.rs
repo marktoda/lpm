@@ -1,14 +1,11 @@
+use crate::package_manager::{Npm, PackageManager};
 use crate::util::run_basic_command_expect;
 use anyhow::{anyhow, Result};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use log::{debug, error, info};
 use serde_json::Value;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
-use crate::package_manager::{Npm, PackageManager};
+use std::{fs, fs::File, io::Write, path::PathBuf};
 
 pub trait Package {
     fn prepare(&self);
@@ -65,7 +62,12 @@ impl Package for Typescript {
 
     fn reset(&mut self, dependency_name: String, version: Option<String>) -> Result<()> {
         let version_string = version.unwrap_or(Npm::get_latest_version_value(&dependency_name)?);
-        info!("Resetting dependency {} to version {} in {}", &dependency_name, version_string, self.get_name());
+        info!(
+            "Resetting dependency {} to version {} in {}",
+            &dependency_name,
+            version_string,
+            self.get_name()
+        );
 
         if self.package_json.update(&dependency_name, &version_string) {
             self.package_json.write()?;

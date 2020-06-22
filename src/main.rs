@@ -4,11 +4,12 @@ extern crate log;
 extern crate solvent;
 extern crate tar;
 
+use anyhow::Result;
 use app_dirs::*;
 use clap::{App, Arg, SubCommand};
 use std::path::PathBuf;
-use anyhow::Result;
 
+mod cache;
 mod package;
 mod package_manager;
 mod registry;
@@ -115,14 +116,19 @@ fn result_main() -> Result<()> {
             } else if reset_matches.is_present("PATH") {
                 let path = get_path(reset_matches.value_of("PATH").unwrap());
                 if reset_matches.is_present("version") {
-                    registry.reset_dependency(path, reset_matches.value_of("version").map(|v| v.to_string()))?;
+                    registry.reset_dependency(
+                        path,
+                        reset_matches.value_of("version").map(|v| v.to_string()),
+                    )?;
                 } else {
                     registry.reset_dependency(path, None)?;
                 }
             } else {
                 // update all packages
                 state.package_paths.iter().for_each(|path| {
-                    registry.reset_dependency(PathBuf::from(path), None).expect("Unable to reset dependency");
+                    registry
+                        .reset_dependency(PathBuf::from(path), None)
+                        .expect("Unable to reset dependency");
                 });
             }
         }
