@@ -1,6 +1,6 @@
+use env_logger::Env;
 use log::debug;
 use std::process::{Command, Output};
-use env_logger::{Env};
 
 pub fn run_basic_command(command: &str) -> Result<Output, std::io::Error> {
     debug!("running command: {:?}", command);

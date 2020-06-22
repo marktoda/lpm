@@ -17,3 +17,5 @@ serde_json = { version = "1.0.55", features = ["preserve_order"] }
 solvent = "0.8.1"
 clap = "2.33.1"
 chrono = "0.4.11"
+tar = "0.4.29"
+flate2 = "1.0.14"

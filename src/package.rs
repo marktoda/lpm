@@ -1,31 +1,41 @@
 use crate::util::run_basic_command;
 use anyhow::Result;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use log::{debug, error, info};
 use serde_json::Value;
 use std::fs::File;
-use std::path::PathBuf;
 use std::io::Write;
+use std::path::PathBuf;
 
-pub struct Package {
+pub trait Package {
+    fn prepare(&self);
+    fn get_name(&self) -> String;
+    fn get_path(&self) -> PathBuf;
+    fn get_version_value(&self) -> String;
+    fn update(&mut self, dependency: Box<dyn Package>) -> bool;
+    fn depends_on(&self, dependency: &Box<dyn Package>) -> bool;
+}
+
+#[derive(Clone, Debug)]
+pub struct Typescript {
     package_json: PackageJson,
-    pub path: PathBuf,
+    path: PathBuf,
 }
 
 // TODO use a trait here so different package types can prepare / update differently
-impl Package {
-    pub fn new(path: PathBuf) -> Package {
+impl Typescript {
+    pub fn new(path: PathBuf) -> Typescript {
         let mut package_json_path = path.clone();
         package_json_path.push("package.json");
-        let package_json =
-            PackageJson::new(package_json_path).expect("to work");
+        let package_json = PackageJson::new(package_json_path).expect("to work");
 
-        Package {
-            package_json,
-            path,
-        }
+        Typescript { package_json, path }
     }
+}
 
-    pub fn prepare(&self) {
+impl Package for Typescript {
+    fn prepare(&self) {
         info!("Preparing typescript package: {}", self.get_name());
 
         let npm_install_output =
@@ -49,15 +59,19 @@ impl Package {
         );
     }
 
-    pub fn get_name(&self) -> String {
+    fn get_name(&self) -> String {
         self.package_json.name.clone()
     }
 
-    pub fn get_version_value(&self) -> String {
+    fn get_path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    fn get_version_value(&self) -> String {
         format!("file:{:?}", self.path)
     }
 
-    pub fn update(&mut self, dependency: &Package) -> bool {
+    fn update(&mut self, dependency: Box<dyn Package>) -> bool {
         info!(
             "Updating dependency {:?} for {:?}",
             dependency.get_name(),
@@ -79,13 +93,66 @@ impl Package {
         }
     }
 
-    pub fn depends_on(&self, dependency: &Package) -> bool {
+    fn depends_on(&self, dependency: &Box<dyn Package>) -> bool {
         self.package_json
             .get(&dependency.get_name())
             .map_or(false, |_| true)
     }
 }
 
+pub struct Bundle {
+    inner: Box<dyn Package>,
+}
+
+// TODO use a trait here so different package types can prepare / update differently
+impl Bundle {
+    pub fn new(inner: Box<dyn Package>) -> Bundle {
+        Bundle { inner }
+    }
+}
+
+impl Package for Bundle {
+    fn prepare(&self) {
+        info!("Creating tarball bundle of {}", self.get_name());
+        let tarball =
+            File::create(format!("asdf.tar.gz")).expect("Unable to create tarball");
+        let enc = GzEncoder::new(tarball, Compression::default());
+        let mut tar = tar::Builder::new(enc);
+        let mut dist = self.get_path().clone();
+        dist.push("dist");
+        tar.append_dir_all("./", dist).expect("Unable to create tar archive");
+        let mut package_json = self.get_path().clone();
+        package_json.push("package.json");
+        tar.append_file(
+            "./",
+            &mut File::open(package_json)
+                .expect("to access package.json"),
+        )
+        .expect("Unable to add package.json to tar archive ");
+    }
+
+    fn get_name(&self) -> String {
+        self.inner.get_name()
+    }
+
+    fn get_path(&self) -> PathBuf {
+        self.inner.get_path()
+    }
+
+    fn get_version_value(&self) -> String {
+        format!("tarball:{:?}", self.get_path())
+    }
+
+    fn update(&mut self, dependency: Box<dyn Package>) -> bool {
+        self.inner.update(dependency)
+    }
+
+    fn depends_on(&self, dependency: &Box<dyn Package>) -> bool {
+        self.inner.depends_on(dependency)
+    }
+}
+
+#[derive(Clone, Debug)]
 struct PackageJson {
     path: PathBuf,
     name: String,
@@ -98,9 +165,9 @@ impl PackageJson {
         let data: Value = serde_json::from_reader(File::open(path.clone())?)?;
         Ok(PackageJson {
             path: path,
-            name: data
-                .get("name")
-                .expect("Package.json to have a name")
+        name: data
+        .get("name")
+            .expect("Package.json to have a name")
                 .to_string()
                 .replace("\"", ""),
             data,

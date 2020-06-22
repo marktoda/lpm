@@ -1,9 +1,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct State {
