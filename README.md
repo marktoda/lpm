@@ -100,8 +100,12 @@ $ lpm update
 $ lpm bundle BitGoJS
 
 ... push to server to run automated e2e tests
-
-$ lpm reset
-
-... back to original package.json configurations
 ```
+
+## Future Improvement
+
+Some ideas for future improvement:
+- *Custom package preparation*: All package are assumed to be prepared with `npm install ; npm run build`. `lpm` should support custom preparation scripts, maybe with an optional arg to `lpm add`
+- *Sessions*: Ability to open / close sessions, reverting state to how it was before the session
+- *Smart caching*: Use `crev-recursive-digest` crate or similar to get the version-hash of a package, and use it to avoid rebuilds if unchanged
+- lots of cleanup, see inline TODOs

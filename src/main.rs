@@ -53,12 +53,11 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("clear")
-                .alias("ls")
                 .about("Clear current package list"),
         )
         .subcommand(
             SubCommand::with_name("bundle")
-                .about("Bundle local dependencies for release of the given package.")
+                .about("Bundle local dependencies for release of the given package")
                 .arg_from_usage("<PATH> 'Path to package directory for release'"),
         )
         .get_matches();

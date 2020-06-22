@@ -24,7 +24,6 @@ pub struct Typescript {
     path: PathBuf,
 }
 
-// TODO use a trait here so different package types can prepare / update differently
 impl Typescript {
     pub fn new(path: PathBuf) -> Typescript {
         let mut package_json_path = path.clone();
