@@ -1,4 +1,4 @@
-use crate::util::run_basic_command;
+use crate::util::run_basic_command_expect;
 use anyhow::Result;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -38,25 +38,9 @@ impl Package for Typescript {
     fn prepare(&self) {
         info!("Preparing package: {}", self.get_name());
 
-        let npm_install_output =
-            run_basic_command(format!("npm install --prefix={:?}", self.path).as_str())
-                .expect("Failed to install");
-        debug!(
-            "{} -- {:?} -- for `npm install` on package: {}",
-            npm_install_output.status,
-            npm_install_output,
-            self.get_name()
-        );
+        run_basic_command_expect(format!("npm install --prefix={:?}", self.path).as_str(), "Failed to install");
 
-        let npm_build_output =
-            run_basic_command(format!("npm run build --prefix={:?}", self.path).as_str())
-                .expect("Failed to build");
-        debug!(
-            "{} -- {:?} -- for `npm run build` on package: {}",
-            npm_build_output.status,
-            npm_build_output,
-            self.get_name()
-        );
+        run_basic_command_expect(format!("npm run build --prefix={:?}", self.path).as_str(), "Failed to build");
     }
 
     fn get_name(&self) -> String {
