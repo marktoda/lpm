@@ -25,11 +25,7 @@ const APP_INFO: AppInfo = AppInfo {
     author: "toda.mark@gmail.com",
 };
 
-fn main() {
-    result_main().unwrap();
-}
-
-fn result_main() -> Result<()> {
+fn main() -> Result<()> {
     let state_dir = app_dir(AppDataType::UserData, &APP_INFO, "registry")
         .expect("To be able to create app dir");
     let mut state = State::load(state_dir.clone()).unwrap_or(State::new(state_dir));
